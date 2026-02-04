@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VÕ LÂM CHÍ TÔN: TỔNG HỢP HOÀN MỸ</title>
+    <style>
+        :root { --gold: #ffd700; --panel: rgba(15, 10, 5, 0.98); --blood: #ff3333; }
+        body { background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; touch-action: none; user-select: none; }
+        
+        #game-view { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        #world { position: absolute; width: 10000px; height: 10000px; background: #111; background-image: radial-gradient(#222 1px, transparent 1px); background-size: 100px 100px; transition: background 0.5s; }
+
+        /* BIOMES */
+        .biome-label { position: absolute; font-size: 100px; opacity: 0.1; font-weight: bold; pointer-events: none; }
+
+        /* STICKMAN PRO ANIMATION */
+        .char { position: absolute; width: 40px; height: 60px; z-index: 100; }
+        .part { position: absolute; background: #fff; border-radius: 2px; }
+        .head { width: 22px; height: 22px; border: 2px solid #fff; border-radius: 50%; top: 0; left: 9px; background: #000; }
+        .body-line { width: 3px; height: 26px; top: 22px; left: 19px; }
+        .arm { width: 18px; height: 4px; top: 25px; left: 19px; transform-origin: left; transition: 0.15s; }
+        .leg { width: 4px; height: 20px; top: 48px; left: 19px; transform-origin: top; }
+        .sword-glow { position: absolute; right: -25px; top: -15px; width: 6px; height: 40px; border-radius: 10px; filter: blur(3px); }
+
+        /* HP BARS */
+        .hp-container { position: absolute; top: -20px; left: 0; width: 40px; height: 5px; background: #333; border: 1px solid #000; }
+        .hp-fill { height: 100%; background: var(--blood); width: 100%; transition: 0.2s; }
+
+        /* BOSS STYLES */
+        .boss-char { transform: scale(6); z-index: 90; }
+        .boss-char .part { background: #ff00ff; }
+        #boss-ui { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); width: 70%; display: none; z-index: 1500; }
+        .boss-hp-bg { width: 100%; height: 20px; background: #300; border: 2px solid #f0f; border-radius: 10px; overflow: hidden; }
+        #boss-hp-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #f0f, #80f); }
+
+        /* ENVIRONMENT & NPC */
+        .obj { position: absolute; font-size: 40px; cursor: pointer; }
+        .npc { position: absolute; text-align: center; color: cyan; font-weight: bold; }
+        .quest-mark { font-size: 30px; color: var(--gold); animation: bounce 1s infinite; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        /* UI PANELS */
+        .ui-fixed { position: fixed; z-index: 1000; }
+        #hud { top: 20px; left: 20px; background: var(--panel); padding: 15px; border-left: 5px solid var(--gold); border-radius: 5px; }
+        #bag-btn { top: 20px; right: 20px; width: 65px; height: 65px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; cursor: pointer; box-shadow: 0 0 20px rgba(255,215,0,0.4); }
+
+        #main-menu { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; z-index: 2000; align-items: center; justify-content: center; }
+        .menu-container { width: 85%; height: 80%; background: var(--panel); border: 2px solid var(--gold); border-radius: 15px; display: flex; flex-direction: column; }
+        .tabs { display: flex; background: rgba(255,255,255,0.05); }
+        .tab-btn { flex: 1; padding: 20px; border: none; background: none; color: #888; font-weight: bold; cursor: pointer; }
+        .tab-btn.active { color: var(--gold); border-bottom: 3px solid var(--gold); }
+        .tab-content { flex: 1; padding: 20px; overflow-y: auto; display: none; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 15px; }
+        .tab-content.active { display: grid; }
+
+        /* SLOTS */
+        .slot { background: #111; border: 1px solid #444; border-radius: 10px; padding: 10px; text-align: center; position: relative; }
+        .slot.equipped { border-color: #0f0; background: #051505; }
+        .slot-icon { font-size: 30px; }
+        .craft-btn { margin-top: 5px; background: var(--gold); border: none; font-size: 10px; font-weight: bold; padding: 4px; border-radius: 3px; width: 100%; cursor: pointer; }
+
+        /* CONTROLS */
+        #joy-base { bottom: 60px; left: 60px; width: 130px; height: 130px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px solid #555; }
+        #joy-knob { position: absolute; top: 35px; left: 35px; width: 60px; height: 60px; background: var(--gold); border-radius: 50%; }
+        #action-bar { bottom: 50px; right: 50px; display: flex; gap: 20px; }
+        .act-btn { width: 85px; height: 85px; background: rgba(0,0,0,0.6); border: 2px solid #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 35px; cursor: pointer; }
+
+        /* VFX & POPUPS */
+        .vfx-hit { position: absolute; pointer-events: none; z-index: 200; font-weight: bold; animation: flyUp 0.6s forwards; }
+        @keyframes flyUp { 0% { transform: translateY(0); opacity:1; } 100% { transform: translateY(-50px); opacity:0; } }
+        .status-icon { position: absolute; top: -50px; font-size: 25px; left: 50%; transform: translateX(-50%); }
+    </style>
+</head>
+<body>
+
+<div id="game-view">
+    <div id="world">
+        <div id="forest" class="biome-label" style="left:1000px; top:1000px">RỪNG XANH</div>
+        <div id="sea" class="biome-label" style="left:5000px; top:1000px">BIỂN ĐÔNG</div>
+        <div id="assets"></div>
+        <div id="entities">
+            <div id="player" class="char">
+                <div class="hp-container"><div id="p-hp" class="hp-fill"></div></div>
+                <div class="part head"></div><div class="part body-line"></div>
+                <div class="part arm arm-l"></div>
+                <div class="part arm arm-r"><div id="p-sword" class="sword-glow"></div></div>
+                <div class="part leg leg-l"></div><div class="part leg leg-r"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud" class="ui-fixed">
+        <b style="color:var(--gold)">GIANG HỒ</b><br>
+        🪵 <span id="w-val">0</span> | 💎 <span id="s-val">0</span> | 🥩 <span id="m-val">0</span><br>
+        <small id="zone-txt">Vùng: Tân Thủ</small>
+    </div>
+
+    <div id="bag-btn" class="ui-fixed" onclick="toggleMenu()">🎒</div>
+
+    <div id="boss-ui">
+        <div style="text-align:center; font-weight:bold; color:#f0f; margin-bottom:5px;">MA VƯƠNG GIÁNG THẾ</div>
+        <div class="boss-hp-bg"><div id="boss-hp-fill"></div></div>
+    </div>
+
+    <div id="main-menu">
+        <div class="menu-container">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="openTab('inv')">HÀNH TRANG</button>
+                <button class="tab-btn" onclick="openTab('craft')">CHẾ TẠO</button>
+                <button class="tab-btn" onclick="toggleMenu()" style="color:#f44">ĐÓNG</button>
+            </div>
+            <div id="inv" class="tab-content active"></div>
+            <div id="craft" class="tab-content"></div>
+        </div>
+    </div>
+
+    <div id="joy-base" class="ui-fixed"><div id="joy-knob"></div></div>
+
+    <div id="action-bar" class="ui-fixed">
+        <div class="act-btn" onclick="playerAttack()" style="border-color:cyan">⚔️</div>
+        <div class="act-btn" onclick="playerCast()" style="border-color:orange">🔥</div>
+        <div class="act-btn" onclick="buildHome()" style="border-color:#5d4037; font-size:25px">🏠</div>
+    </div>
+</div>
+
+<script>
+    const SWORDS = [
+        { id:0, name:"Kiếm Gỗ", icon:"🪵", dmg:10, color:"#8b4513", effect:"none", cost:{w:0, s:0} },
+        { id:1, name:"Trọng Kiếm", icon:"🗡️", dmg:30, color:"#aaa", effect:"none", cost:{w:10, s:10} },
+        { id:2, name:"Hỏa Long", icon:"🔥", dmg:50, color:"#f44", effect:"fire", cost:{w:20, s:30} },
+        { id:3, name:"Băng Phách", icon:"❄️", dmg:50, color:"#0ef", effect:"ice", cost:{w:20, s:30} },
+        { id:4, name:"U Minh", icon:"💀", dmg:70, color:"#a0f", effect:"curse", cost:{w:40, s:60} }
+    ];
+
+    const G = {
+        p: { x:5000, y:5000, hp:1000, max:1000, wood:0, stone:0, meat:0, inv:[SWORDS[0]], equipped:SWORDS[0] },
+        joy: { active: false, dx: 0, dy: 0 },
+        enemies: [],
+        boss: null,
+        worldObjs: [],
+        tick: 0
+    };
+
+    function init() {
+        const assets = document.getElementById('assets');
+        // Sinh cây, đá, NPC
+        for(let i=0; i<80; i++) {
+            const x = Math.random()*9000+500, y = Math.random()*9000+500, type = Math.random()>0.5 ? '🌲' : '🪨';
+            assets.innerHTML += `<div id="obj${i}" class="obj" style="left:${x}px; top:${y}px">${type}</div>`;
+            G.worldObjs.push({id:`obj${i}`, x, y, type:type==='🌲'?'wood':'stone', hp:3});
+        }
+        spawnNPC(5100, 5000, "Sư Phụ");
+        
+        setInterval(spawnEnemy, 3000);
+        setInterval(bossManager, 1000);
+        gameLoop();
+        updateUI();
+    }
+
+    function spawnNPC(x, y, name) {
+        const n = document.createElement('div');
+        n.className = 'npc'; n.style.left = x+'px'; n.style.top = y+'px';
+        n.innerHTML = `<div class="quest-mark">!</div><div class="char" style="position:relative"><div class="head"></div><div class="body-line"></div></div><div>${name}</div>`;
+        n.onclick = () => alert("Sư Phụ: Hãy thu thập gỗ và đá để chế tạo thần binh!");
+        document.getElementById('entities').appendChild(n);
+    }
+
+    function spawnEnemy() {
+        if(G.enemies.length > 12) return;
+        const id = Date.now();
+        const ex = G.p.x + (Math.random()-0.5)*1200;
+        const ey = G.p.y + (Math.random()-0.5)*1200;
+        const enemy = { id, x:ex, y:ey, hp:150, max:150, type:'mob', effects:{} };
+        const el = document.createElement('div');
+        el.id = 'e'+id; el.className = 'char';
+        el.innerHTML = `<div class="hp-container"><div class="hp-fill"></div></div><div class="part head" style="border-color:red"></div><div class="part body-line" style="background:red"></div>`;
+        document.getElementById('entities').appendChild(el);
+        G.enemies.push({...enemy, el});
+    }
+
+    function bossManager() {
+        G.tick++;
+        if(G.tick % 120 === 0 && !G.boss) { // Mỗi 2 phút
+            G.boss = { x:5000, y:5000, hp:10000, max:10000 };
+            const el = document.createElement('div');
+            el.className = 'char boss-char';
+            el.innerHTML = `<div class="part head"></div><div class="part body-line"></div>`;
+            document.getElementById('entities').appendChild(el);
+            G.boss.el = el;
+            document.getElementById('boss-ui').style.display = 'block';
+            alert("MA VƯƠNG XUẤT HIỆN TẠI TRUNG TÂM!");
+        }
+    }
+
+    function playerAttack() {
+        animateArm();
+        // Đánh quái & Boss
+        const targets = [...G.enemies];
+        if(G.boss) targets.push(G.boss);
+
+        targets.forEach(e => {
+            const d = Math.hypot(G.p.x - e.x, G.p.y - e.y);
+            if(d < 100 * (G.boss && e === G.boss ? 3 : 1)) {
+                applyDamage(e, G.p.equipped.dmg, G.p.equipped.effect);
+            }
+        });
+
+        // Thu thập tài nguyên
+        G.worldObjs.forEach((o, i) => {
+            if(Math.hypot(G.p.x - o.x, G.p.y - o.y) < 100) {
+                o.hp--;
+                if(o.hp <= 0) {
+                    if(o.type === 'wood') G.p.wood += 5; else G.p.stone += 5;
+                    document.getElementById(o.id).remove();
+                    G.worldObjs.splice(i, 1);
+                    updateUI();
+                }
+            }
+        });
+    }
+
+    function applyDamage(e, dmg, effect) {
+        let finalDmg = dmg;
+        if(e.effects?.curse) finalDmg *= 1.5;
+        e.hp -= finalDmg;
+        
+        // Popup damage
+        const pop = document.createElement('div');
+        pop.className = 'vfx-hit'; pop.innerText = Math.floor(finalDmg);
+        pop.style.left = e.x+'px'; pop.style.top = e.y+'px';
+        pop.style.color = effect === 'fire' ? 'orange' : (effect === 'ice' ? 'cyan' : 'white');
+        document.getElementById('entities').appendChild(pop);
+        setTimeout(() => pop.remove(), 600);
+
+        if(effect !== 'none') e.effects[effect] = 5; // Kéo dài 5 giây
+
+        if(e.hp <= 0) {
+            if(e === G.boss) {
+                G.boss.el.remove(); G.boss = null;
+                document.getElementById('boss-ui').style.display = 'none';
+                G.p.wood += 100; G.p.stone += 100;
+            } else {
+                e.el.remove();
+                G.enemies = G.enemies.filter(m => m.id !== e.id);
+                G.p.meat += 1;
+            }
+            updateUI();
+        } else {
+            const fill = e === G.boss ? document.getElementById('boss-hp-fill') : e.el.querySelector('.hp-fill');
+            fill.style.width = (e.hp/e.max*100)+'%';
+        }
+    }
+
+    function playerCast() {
+        if(G.p.meat < 1) return; G.p.meat--;
+        const vfx = document.createElement('div');
+        vfx.style.position = 'absolute'; vfx.style.left = G.p.x+'px'; vfx.style.top = G.p.y+'px';
+        vfx.style.width = '300px'; vfx.style.height = '300px'; vfx.style.borderRadius = '50%';
+        vfx.style.border = '10px solid orange'; vfx.style.transform = 'translate(-50%, -50%) scale(0)';
+        document.getElementById('entities').appendChild(vfx);
+        vfx.animate([{scale:0, opacity:1}, {scale:1, opacity:0}], 500);
+        setTimeout(() => vfx.remove(), 500);
+
+        G.enemies.forEach(e => {
+            if(Math.hypot(G.p.x - e.x, G.p.y - e.y) < 200) applyDamage(e, 100, 'fire');
+        });
+        updateUI();
+    }
+
+    function buildHome() {
+        if(G.p.wood < 20) return alert("Cần 20 Gỗ để xây nhà!");
+        G.p.wood -= 20;
+        const h = document.createElement('div');
+        h.style.position = 'absolute'; h.style.left = G.p.x+'px'; h.style.top = G.p.y+'px';
+        h.innerHTML = `<div style="width:100px; height:80px; background:#5d4037; border:2px solid #222;">
+            <div style="width:100%; height:40px; background:#3e2723; margin-top:-40px; clip-path:polygon(50% 0, 0 100%, 100% 100%)"></div>
+        </div>`;
+        document.getElementById('assets').appendChild(h);
+        updateUI();
+    }
+
+    function toggleMenu() {
+        const m = document.getElementById('main-menu');
+        m.style.display = m.style.display === 'flex' ? 'none' : 'flex';
+        if(m.style.display === 'flex') { openTab('inv'); }
+    }
+
+    function openTab(id) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        event.target.classList.add('active');
+        const content = document.getElementById(id);
+        content.classList.add('active');
+        content.innerHTML = '';
+
+        if(id === 'inv') {
+            G.p.inv.forEach(s => {
+                content.innerHTML += `<div class="slot ${G.p.equipped.id===s.id?'equipped':''}" onclick="equip(${s.id})">
+                    <div class="slot-icon">${s.icon}</div><small>${s.name}</small>
+                </div>`;
+            });
+        } else {
+            SWORDS.forEach(s => {
+                content.innerHTML += `<div class="slot">
+                    <div class="slot-icon">${s.icon}</div><small>${s.name}</small>
+                    <button class="craft-btn" onclick="craft(${s.id})">RÈN</button>
+                    <div style="font-size:8px">W:${s.cost.w} S:${s.cost.s}</div>
+                </div>`;
+            });
+        }
+    }
+
+    function craft(id) {
+        const s = SWORDS.find(x => x.id === id);
+        if(G.p.wood >= s.cost.w && G.p.stone >= s.cost.s) {
+            G.p.wood -= s.cost.w; G.p.stone -= s.cost.s;
+            G.p.inv.push(s); updateUI(); openTab('craft');
+        } else alert("Thiếu nguyên liệu!");
+    }
+
+    function equip(id) {
+        G.p.equipped = G.p.inv.find(x => x.id === id);
+        const glow = document.getElementById('p-sword');
+        glow.style.background = G.p.equipped.color;
+        glow.style.boxShadow = `0 0 15px ${G.p.equipped.color}`;
+        toggleMenu();
+    }
+
+    function updateUI() {
+        document.getElementById('w-val').innerText = G.p.wood;
+        document.getElementById('s-val').innerText = G.p.stone;
+        document.getElementById('m-val').innerText = G.p.meat;
+        document.getElementById('p-hp').style.width = (G.p.hp/G.p.max*100)+'%';
+    }
+
+    function animateArm() {
+        const a = document.querySelector('.arm-r');
+        a.style.transform = "rotate(-90deg) scale(1.4)";
+        setTimeout(() => a.style.transform = "rotate(30deg)", 150);
+    }
+
+    function gameLoop() {
+        // Player movement
+        if(G.joy.active) {
+            G.p.x += G.joy.dx * 8; G.p.y += G.joy.dy * 8;
+            const step = Math.sin(Date.now()/100) * 45;
+            document.querySelector('.leg-l').style.transform = `rotate(${step}deg)`;
+            document.querySelector('.leg-r').style.transform = `rotate(${-step}deg)`;
+            document.getElementById('player').style.transform = `scaleX(${G.joy.dx > 0 ? 1 : -1})`;
+        }
+        document.getElementById('player').style.left = G.p.x+'px';
+        document.getElementById('player').style.top = G.p.y+'px';
+        document.getElementById('world').style.transform = `translate(${window.innerWidth/2 - G.p.x}px, ${window.innerHeight/2 - G.p.y}px)`;
+
+        // Enemies AI & Effects
+        G.enemies.forEach(e => {
+            let spd = 2;
+            if(e.effects.ice) spd = 0.5;
+            if(e.effects.fire && G.tick % 60 === 0) applyDamage(e, 5, 'none');
+            
+            const ang = Math.atan2(G.p.y - e.y, G.p.x - e.x);
+            if(Math.hypot(G.p.x-e.x, G.p.y-e.y) < 500) {
+                e.x += Math.cos(ang)*spd; e.y += Math.sin(ang)*spd;
+            }
+            e.el.style.left = e.x+'px'; e.el.style.top = e.y+'px';
+        });
+
+        if(G.boss) {
+            G.boss.el.style.left = G.boss.x+'px'; G.boss.el.style.top = G.boss.y+'px';
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Joystick
+    const jb = document.getElementById('joy-base'), jk = document.getElementById('joy-knob');
+    jb.addEventListener('pointerdown', e => { G.joy.active = true; moveJ(e); });
+    window.addEventListener('pointermove', e => { if(G.joy.active) moveJ(e); });
+    window.addEventListener('pointerup', () => { G.joy.active = false; jk.style.transform = 'translate(0,0)'; });
+    function moveJ(e) {
+        const r = jb.getBoundingClientRect(), x = e.clientX-(r.left+65), y = e.clientY-(r.top+65);
+        const d = Math.min(Math.hypot(x,y), 45), a = Math.atan2(y,x);
+        jk.style.transform = `translate(${Math.cos(a)*d}px, ${Math.sin(a)*d}px)`;
+        G.joy.dx = Math.cos(a); G.joy.dy = Math.sin(a);
+    }
+
+    init();
+</script>
+</body>
+</html>
+  
